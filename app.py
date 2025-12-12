@@ -5,66 +5,47 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # --- تنظیمات صفحه و استایل ---
-st.set_page_config(page_title="تحلیل اقتصادی پروژه", layout="wide", page_icon="💰")
+st.set_page_config(page_title="Engineering Economy Analysis", layout="wide", page_icon="💰")
 
-# استایل‌دهی برای راست‌چین کردن متن‌ها (فارسی)
+# استایل‌دهی برای راست‌چین کردن متن‌های فارسی و تنظیم فونت
 st.markdown("""
 <style>
     .main {direction: rtl; text-align: right; font-family: 'Tahoma', sans-serif;}
     h1, h2, h3 {text-align: right;}
-    .stDataFrame {direction: ltr;} /* جداول اعداد چپ چین باشند */
+    .stDataFrame {direction: ltr;} 
+    .stMetric {text-align: right;}
+    /* چپ‌چین کردن متن‌های داخل نمودارها و فوتر انگلیسی */
+    .footer-text {direction: ltr; text-align: center; font-weight: bold; color: #555;}
 </style>
 """, unsafe_allow_html=True)
 
 # --- توابع محاسباتی ---
 
 def calculate_metrics(p, n, marr, cf_in, cf_out, s):
-    """
-    محاسبه شاخص‌های اقتصادی
-    """
-    # ساخت جریان نقدی خالص (Net Cash Flow)
-    # سال 0: سرمایه‌گذاری اولیه (منفی)
-    # سال 1 تا N-1: درآمد - هزینه
-    # سال N: درآمد - هزینه + ارزش اسقاط
-    
-    cash_flows = [-p]  # سال صفر
-    
-    # فرض می‌کنیم ورودی‌ها برای هر سال ثابت است (برای سادگی ورودی کاربر)
-    # اما در کد می‌توانستیم لیست بگیریم. اینجا لیست می‌سازیم:
+    cash_flows = [-p] 
     annual_net = cf_in - cf_out
-    
     for _ in range(n - 1):
         cash_flows.append(annual_net)
-        
-    # سال آخر
     cash_flows.append(annual_net + s)
     
-    # 1. محاسبه NPW
     npw = npf.npv(marr, cash_flows)
-    
-    # 2. محاسبه IRR
     try:
         irr = npf.irr(cash_flows)
     except:
         irr = np.nan
 
-    # 3. محاسبه EUAW (A/P)
-    # فرمول: A = P * [i(1+i)^n / ((1+i)^n - 1)]
-    # اما اینجا ما NPW را داریم، پس: EUAW = NPW * (A/P, i, n)
     if marr == 0:
         euaw = npw / n
     else:
         capital_recovery_factor = (marr * (1 + marr)**n) / ((1 + marr)**n - 1)
         euaw = npw * capital_recovery_factor
 
-    # 4. محاسبه DPBP (دوره بازگشت سرمایه تخفیف‌خورده)
     discounted_cf = [cf / ((1 + marr)**t) for t, cf in enumerate(cash_flows)]
     cumulative_discounted_cf = np.cumsum(discounted_cf)
     
     dpbp = None
     for t, cum_val in enumerate(cumulative_discounted_cf):
         if cum_val >= 0:
-            # درون‌یابی خطی برای دقت بیشتر (اختیاری) یا فقط سال:
             dpbp = t
             break
             
@@ -75,10 +56,11 @@ def calculate_metrics(p, n, marr, cf_in, cf_out, s):
 st.title("📊 سامانه هوشمند تحلیل اقتصاد مهندسی")
 st.markdown("---")
 
-# بخش ورودی‌ها در سایدبار
+# بخش ورودی‌ها در سایدبار (همچنان فارسی)
 with st.sidebar:
     st.header("ورودی‌های پروژه")
-    project_name = st.text_input("نام پروژه", "پروژه احداث کارخانه")
+    # نام پیش‌فرض را انگلیسی گذاشتم تا در نمودار درست دیده شود
+    project_name = st.text_input("نام پروژه (ترجیحاً انگلیسی)", "Factory Project")
     
     st.subheader("پارامترهای مالی")
     p = st.number_input("هزینه اولیه سرمایه‌گذاری (P)", min_value=0.0, value=10000.0, step=1000.0)
@@ -94,13 +76,11 @@ with st.sidebar:
     st.markdown("---")
     run_calc = st.button("محاسبه و تحلیل")
 
-# اجرای محاسبات در صورت کلیک دکمه یا بارگذاری اولیه
-if run_calc or True: # True گذاشتم که همیشه اجرا بشه و زیبا باشه
+if run_calc or True:
     
-    # انجام محاسبات
     cash_flows, npw, irr, euaw, dpbp = calculate_metrics(p, n, marr, cf_in, cf_out, s)
     
-    # --- نمایش نتایج خلاصه (KPIs) ---
+    # --- نمایش نتایج خلاصه (KPIs) - فارسی ---
     st.subheader(f"نتیجه ارزیابی: {project_name}")
     
     col1, col2, col3, col4 = st.columns(4)
@@ -117,7 +97,6 @@ if run_calc or True: # True گذاشتم که همیشه اجرا بشه و زی
         dpbp_display = f"{dpbp} سال" if dpbp is not None else "بازگشت ندارد"
         st.metric(label="بازگشت سرمایه (DPBP)", value=dpbp_display)
 
-    # پیام تصمیم‌گیری نهایی
     if npw > 0 and (np.isnan(irr) or irr > marr):
         st.success("✅ **نتیجه:** این پروژه از نظر اقتصادی **توجیه‌پذیر** است.")
     else:
@@ -125,23 +104,24 @@ if run_calc or True: # True گذاشتم که همیشه اجرا بشه و زی
 
     st.markdown("---")
 
-    # --- تب‌بندی بخش‌های تحلیلی ---
+    # --- تب‌بندی نمودارها (نمودارها انگلیسی شده‌اند) ---
     tab1, tab2, tab3 = st.tabs(["📉 نمودار جریان نقدی", "🔍 تحلیل حساسیت (Tornado)", "📈 نمودار NPW vs i"])
 
     with tab1:
-        st.subheader("نمودار جریان نقدی (Cash Flow Diagram)")
+        st.subheader("Cash Flow Diagram")
         years = np.arange(0, n + 1)
         colors = ['red' if cf < 0 else 'green' for cf in cash_flows]
         
         fig, ax = plt.subplots(figsize=(10, 4))
         bars = ax.bar(years, cash_flows, color=colors, edgecolor='black')
         ax.axhline(0, color='black', linewidth=1)
-        ax.set_xlabel("سال")
-        ax.set_ylabel("جریان نقدی")
-        ax.set_title(f"دیاگرام جریان نقدی {project_name}")
+        
+        # --- ENGLISH LABELS ---
+        ax.set_xlabel("Year")
+        ax.set_ylabel("Cash Flow ($)")
+        ax.set_title(f"Cash Flow Diagram: {project_name}")
         ax.grid(axis='y', linestyle='--', alpha=0.7)
         
-        # نمایش اعداد روی ستون‌ها
         for bar in bars:
             yval = bar.get_height()
             ax.text(bar.get_x() + bar.get_width()/2, yval, f'{int(yval)}', va='bottom' if yval > 0 else 'top', ha='center')
@@ -149,56 +129,50 @@ if run_calc or True: # True گذاشتم که همیشه اجرا بشه و زی
         st.pyplot(fig)
 
     with tab2:
-        st.subheader("تحلیل حساسیت (Tornado Chart)")
-        st.markdown("تأثیر تغییر **20%±** پارامترهای کلیدی بر روی **NPW**:")
+        st.subheader("Sensitivity Analysis (Tornado Chart)")
         
-        # پارامترها برای تغییر
-        changes = [-0.20, 0.20] # -20% and +20%
+        changes = [-0.20, 0.20]
         base_npw = npw
-        
         sensitivity_data = []
         
-        # 1. حساسیت نسبت به هزینه اولیه (P)
+        # English Parameter Names
+        # 1. Investment
         p_low_npw = calculate_metrics(p * 0.8, n, marr, cf_in, cf_out, s)[1]
         p_high_npw = calculate_metrics(p * 1.2, n, marr, cf_in, cf_out, s)[1]
-        sensitivity_data.append({'Parameter': 'هزینه اولیه (P)', 'Low': p_high_npw, 'High': p_low_npw, 'Range': abs(p_high_npw - p_low_npw)})
-        # نکته: افزایش هزینه معمولا NPW را کم می‌کند، پس High Input -> Low Output
+        sensitivity_data.append({'Parameter': 'Initial Investment (P)', 'Low': p_high_npw, 'High': p_low_npw, 'Range': abs(p_high_npw - p_low_npw)})
         
-        # 2. حساسیت نسبت به درآمد سالانه (Revenue)
+        # 2. Revenue
         r_low_npw = calculate_metrics(p, n, marr, cf_in * 0.8, cf_out, s)[1]
         r_high_npw = calculate_metrics(p, n, marr, cf_in * 1.2, cf_out, s)[1]
-        sensitivity_data.append({'Parameter': 'درآمد سالانه', 'Low': r_low_npw, 'High': r_high_npw, 'Range': abs(r_high_npw - r_low_npw)})
+        sensitivity_data.append({'Parameter': 'Annual Revenue', 'Low': r_low_npw, 'High': r_high_npw, 'Range': abs(r_high_npw - r_low_npw)})
         
-        # 3. حساسیت نسبت به نرخ بهره (MARR)
+        # 3. MARR
         m_low_npw = calculate_metrics(p, n, marr * 0.8, cf_in, cf_out, s)[1]
         m_high_npw = calculate_metrics(p, n, marr * 1.2, cf_in, cf_out, s)[1]
-        sensitivity_data.append({'Parameter': 'نرخ بهره (MARR)', 'Low': m_high_npw, 'High': m_low_npw, 'Range': abs(m_high_npw - m_low_npw)})
+        sensitivity_data.append({'Parameter': 'Interest Rate (MARR)', 'Low': m_high_npw, 'High': m_low_npw, 'Range': abs(m_high_npw - m_low_npw)})
 
-        # ترسیم نمودار تورنادو
         df_sens = pd.DataFrame(sensitivity_data).sort_values(by='Range', ascending=True)
         
         fig_tor, ax_tor = plt.subplots(figsize=(10, 5))
         y_pos = np.arange(len(df_sens))
         
-        # میله‌ها از مقدار Low تا High کشیده می‌شوند
-        # برای سادگی در نمایش تورنادو، انحراف از Base NPW را رسم می‌کنیم
-        ax_tor.barh(y_pos, df_sens['High'] - base_npw, left=base_npw, color='green', label='+20% تغییر در پارامتر (اثر مثبت)', align='center')
-        ax_tor.barh(y_pos, df_sens['Low'] - base_npw, left=base_npw, color='red', label='-20% تغییر در پارامتر (اثر منفی)', align='center')
+        # --- ENGLISH LABELS ---
+        ax_tor.barh(y_pos, df_sens['High'] - base_npw, left=base_npw, color='green', label='+20% Change (Positive Impact)', align='center')
+        ax_tor.barh(y_pos, df_sens['Low'] - base_npw, left=base_npw, color='red', label='-20% Change (Negative Impact)', align='center')
         
         ax_tor.set_yticks(y_pos)
         ax_tor.set_yticklabels(df_sens['Parameter'])
         ax_tor.axvline(base_npw, color='black', linestyle='--', label=f'Base NPW: {base_npw:,.0f}')
-        ax_tor.set_xlabel('NPW')
-        ax_tor.set_title('نمودار تورنادو: حساسیت NPW به تغییر متغیرها')
+        ax_tor.set_xlabel('Net Present Worth (NPW)')
+        ax_tor.set_title('Tornado Chart: Sensitivity Analysis')
         ax_tor.legend()
         
         st.pyplot(fig_tor)
-        st.info("نکته: هر چه طول میله بلندتر باشد، پروژه به تغییرات آن پارامتر حساس‌تر است.")
 
     with tab3:
-        st.subheader("پروفایل NPW نسبت به نرخ بهره")
+        st.subheader("NPW vs Interest Rate Profile")
         
-        rates = np.linspace(0, marr * 2.5, 50) # دامنه نرخ بهره از 0 تا 2.5 برابر MARR
+        rates = np.linspace(0, marr * 2.5, 50)
         npw_values = [npf.npv(r, cash_flows) for r in rates]
         
         fig_line, ax_line = plt.subplots(figsize=(10, 5))
@@ -209,14 +183,19 @@ if run_calc or True: # True گذاشتم که همیشه اجرا بشه و زی
         if not np.isnan(irr) and 0 <= irr <= marr * 2.5:
              ax_line.plot(irr * 100, 0, 'ro', label=f'IRR ({irr*100:.1f}%)')
              
-        ax_line.set_xlabel('نرخ بهره (%)')
-        ax_line.set_ylabel('NPW')
-        ax_line.set_title('نمودار حساسیت NPW به تغییرات نرخ بهره')
+        # --- ENGLISH LABELS ---
+        ax_line.set_xlabel('Interest Rate (%)')
+        ax_line.set_ylabel('Net Present Worth (NPW)')
+        ax_line.set_title('NPW Sensitivity to Interest Rate')
         ax_line.legend()
         ax_line.grid(True, alpha=0.3)
         
         st.pyplot(fig_line)
 
-# --- فوتر ---
+# --- فوتر با نام شما ---
 st.markdown("---")
-st.caption("طراحی شده برای پروژه درس اقتصاد مهندسی - پایتون")
+st.markdown("""
+<div class="footer-text">
+    Designed & Developed by Amirhosein Razeghi
+</div>
+""", unsafe_allow_html=True)
